@@ -31,4 +31,5 @@ pub struct SignedRequest {
     pub signature: Signature,
     pub payment_channel: PaymentChannel,
     pub payment_amount: U256,
+    pub body_bytes: Vec<u8>,
 }

@@ -127,6 +127,7 @@ pub async fn auth_middleware(
         signature,
         payment_channel,
         payment_amount,
+        body_bytes: body_bytes.to_vec(),
     };
 
     // Validate the headers against the payment channel state and return the response
@@ -185,11 +186,12 @@ async fn verify_and_update_channel(
         .check_rate_limit(request.payment_channel.sender)
         .await?;
 
-    let mut channels = state.channels.write().await;
+    // let mut channels = state.channels.write().await;
+    let exisisting_channels = state.get_channel(request.payment_channel.channel_id);
 
     // Check if channel exists
     // NOTE: Nonce validation can be skipped as the balance will be acting as nonce here, the sender will always send the tx with the highest balance, we'll check for that here within our local record
-    if let Some(existing_channel) = channels.get(&request.payment_channel.channel_id) {
+    if let Some(existing_channel) = exisisting_channels {
         println!("Existing channel found");
         // Ensure new nonce is greater than existing nonce
         if request.payment_channel.nonce <= existing_channel.nonce {
@@ -231,7 +233,7 @@ async fn verify_and_update_channel(
     request.payment_channel.balance -= request.payment_amount;
 
     // Update or insert the channel
-    channels.insert(
+    state.update_channel(
         request.payment_channel.channel_id,
         request.payment_channel.clone(),
     );

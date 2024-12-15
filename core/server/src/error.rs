@@ -8,6 +8,10 @@ pub enum AuthError {
     #[error("Invalid signature")]
     InvalidSignature,
     #[error("Insufficient payment channel balance")]
+    InvalidMessage,
+    #[error("Invalid message")]
+    InvalidNonce,
+    #[error("Invalid nonce")]
     InsufficientBalance,
     #[error("Payment channel expired")]
     Expired,
@@ -30,6 +34,8 @@ impl From<AuthError> for StatusCode {
         match error {
             AuthError::MissingHeaders => StatusCode::BAD_REQUEST,
             AuthError::InvalidSignature => StatusCode::UNAUTHORIZED,
+            AuthError::InvalidMessage => StatusCode::BAD_REQUEST,
+            AuthError::InvalidNonce => StatusCode::BAD_REQUEST,
             AuthError::InsufficientBalance => StatusCode::PAYMENT_REQUIRED,
             AuthError::Expired => StatusCode::REQUEST_TIMEOUT,
             AuthError::InvalidChannel => StatusCode::BAD_REQUEST,
