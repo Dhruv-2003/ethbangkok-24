@@ -1,0 +1,27 @@
+[package]
+name = "axum"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Dhruv-2003 <dhruvagarwal2017@gmail.com>" ]
+
+[package.metadata.release]
+release = false
+
+# https://github.com/rustwasm/wasm-pack/issues/1247
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+worker = { version="0.5.0", features=['http', 'axum'] }
+worker-macros = { version="0.5.0", features=['http'] }
+axum  = { version = "0.7", default-features = false }
+tower-service = "0.3.2"
+console_error_panic_hook = { version = "0.1.1" }
+pipegate = "0.3.0"
+alloy = "0.8.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }

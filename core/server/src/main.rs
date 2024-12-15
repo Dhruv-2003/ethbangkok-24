@@ -4,6 +4,8 @@ use alloy::{
     primitives::{Address, Bytes, U256},
     signers::Signature,
 };
+
+#[cfg(not(target_arch = "wasm32"))]
 use axum::{routing::get, Router};
 use pipegate::{
     channel::{close_channel, ChannelState},
@@ -11,6 +13,7 @@ use pipegate::{
     types::PaymentChannel,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 pub async fn main() {
     // a mock server implementation using axum
