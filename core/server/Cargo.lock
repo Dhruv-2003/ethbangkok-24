@@ -569,6 +569,7 @@ dependencies = [
  "tower",
  "tracing",
  "url",
+ "wasm-bindgen-futures",
  "wasmtimer",
 ]
 
@@ -2373,6 +2374,7 @@ name = "pipegate"
 version = "0.4.0"
 dependencies = [
  "alloy",
+ "alloy-transport",
  "axum",
  "dashmap",
  "getrandom",
