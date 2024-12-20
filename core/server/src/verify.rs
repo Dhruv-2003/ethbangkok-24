@@ -1,6 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use alloy::{hex, primitives::U256};
+// use alloy::{hex, primitives::U256};
+
+use ethers::{types::U256, utils::hex};
 
 use crate::{
     channel::ChannelState,
@@ -37,7 +39,7 @@ pub async fn verify_and_update_channel(
         &request.body_bytes,
     );
 
-    if request.message != reconstructed_message {
+    if request.message.eq(&reconstructed_message) {
         println!("Failed: Message mismatch");
         return Err(AuthError::InvalidMessage);
     } else {
@@ -64,7 +66,7 @@ pub async fn verify_and_update_channel(
         .unwrap()
         .as_secs();
 
-    if request.payment_channel.expiration < U256::from(now) {
+    if request.payment_channel.expiration.lt(&U256::from(now)) {
         return Err(AuthError::Expired);
     }
 
@@ -73,7 +75,7 @@ pub async fn verify_and_update_channel(
     if let Some(existing_channel) = existing_channel {
         println!("Existing channel found");
         // Ensure new nonce is greater than existing nonce
-        if request.payment_channel.nonce <= existing_channel.nonce {
+        if request.payment_channel.nonce.le(&existing_channel.nonce) {
             println!(
                 "Failed: Invalid nonce - current: {}, received: {}",
                 existing_channel.nonce, request.payment_channel.nonce
@@ -83,7 +85,11 @@ pub async fn verify_and_update_channel(
             println!("Nonce match");
         }
 
-        if request.payment_channel.balance != existing_channel.balance {
+        if request
+            .payment_channel
+            .balance
+            .ne(&existing_channel.balance)
+        {
             println!(
                 "Failed: Invalid balance - current: {}, received: {}",
                 existing_channel.balance, request.payment_channel.balance
@@ -102,7 +108,7 @@ pub async fn verify_and_update_channel(
         state.validate_channel(&request.payment_channel).await?;
 
         // Ensure the nonce is 0
-        if request.payment_channel.nonce != U256::from(0) {
+        if request.payment_channel.nonce.ne(&U256::from(0)) {
             return Err(AuthError::InvalidNonce);
         }
     }
@@ -110,6 +116,11 @@ pub async fn verify_and_update_channel(
     // NOTE: Update Balance for updating the local state, deducting the balance from the channel
     println!("Updating channel state");
     request.payment_channel.balance -= request.payment_amount;
+
+    println!(
+        "Updated Channel: {}",
+        serde_json::to_string(&request.payment_channel).unwrap()
+    );
 
     // Update or insert the channel
     // channels.insert(

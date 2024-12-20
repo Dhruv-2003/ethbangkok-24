@@ -20,8 +20,9 @@ worker-macros = { version="0.5.0", features=['http'] }
 axum  = { version = "0.7", default-features = false }
 tower-service = "0.3.2"
 console_error_panic_hook = { version = "0.1.1" }
-pipegate = "0.3.0"
+pipegate = { path="../../../core/server"}
 alloy = "0.8.0"
+ethers = { version="2.0.14", features = ["abigen", "ws"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

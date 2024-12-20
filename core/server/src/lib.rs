@@ -2,6 +2,7 @@ pub mod channel;
 
 pub mod error;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod middleware;
 
 pub mod types;

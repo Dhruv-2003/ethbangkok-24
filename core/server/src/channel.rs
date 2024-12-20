@@ -3,19 +3,37 @@
 
 use std::{
     // collections::HashMap,
+    fmt::Error,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use alloy::{
-    contract::Error,
-    network::EthereumWallet,
-    primitives::{Address, FixedBytes, U256},
-    providers::ProviderBuilder,
-    signers::{local::PrivateKeySigner, Signature},
-    sol,
+// use alloy::{
+//     contract::Error,
+//     network::EthereumWallet,
+//     primitives::{Address, FixedBytes, U256},
+//     providers::ProviderBuilder,
+//     signers::{local::PrivateKeySigner, Signature},
+//     sol,
+// };
+
+use ethers::{
+    abi::Bytes,
+    contract::abigen,
+    middleware::SignerMiddleware,
+    prelude::Provider,
+    signers::LocalWallet,
+    types::{Address, Signature, U256},
 };
-use alloy::{primitives::Bytes, transports::http::reqwest::Url};
+
+#[cfg(not(target_arch = "wasm32"))]
+use ethers::providers::Http;
+
+#[cfg(target_arch = "wasm32")]
+use ethers::providers::Ws;
+
+// use alloy::{primitives::Bytes, transports::http::reqwest::Url};
+
 use dashmap::DashMap;
 
 // #[cfg(not(target_arch = "wasm32"))]
@@ -26,11 +44,17 @@ use dashmap::DashMap;
 
 use crate::{error::AuthError, types::PaymentChannel};
 
-sol!(
-    #[allow(missing_docs)]
-    #[sol(rpc)]
+// sol!(
+//     #[allow(missing_docs)]
+//     #[sol(rpc)]
+//     PaymentChannelContract,
+//     "src/abi/PaymentChannel.json"
+// );
+
+abigen!(
     PaymentChannelContract,
-    "src/abi/PaymentChannel.json"
+    "src/abi/PaymentChannel.json",
+    derives(serde::Deserialize, serde::Serialize)
 );
 
 #[derive(Clone)]
@@ -44,11 +68,11 @@ pub struct ChannelState {
 
     // rate_limiter: Arc<RwLock<HashMap<Address, (u64, SystemTime)>>>, // Rate limiter for the user
     rate_limiter: Arc<DashMap<Address, (u64, SystemTime)>>,
-    network_rpc_url: Url, // provider: Arc<dyn Provider>, // Provider to interact with the blockchain
+    network_rpc_url: String, // provider: Arc<dyn Provider>, // Provider to interact with the blockchain
 }
 
 impl ChannelState {
-    pub fn new(rpc_url: Url) -> Self {
+    pub fn new(rpc_url: String) -> Self {
         Self {
             // channels: Arc::new(RwLock::new(HashMap::new())),
             // rate_limiter: Arc::new(RwLock::new(HashMap::new())),
@@ -82,7 +106,7 @@ impl ChannelState {
 
         // Network logic to verify the signature, could be a simple ECDSA verification
         // TODO: Recheck this logic
-        let recovered = signature.recover_address_from_msg(message);
+        let recovered = signature.recover(message);
         println!("Recovered address: {:?}", recovered);
 
         // Match the recovered address with the one in the channel state
@@ -101,17 +125,22 @@ impl ChannelState {
         payment_channel: &PaymentChannel,
     ) -> Result<(), AuthError> {
         // self.network.validate_channel(channel_id, balance).await
-        let provider = ProviderBuilder::new().on_http(self.network_rpc_url.clone());
+        // let provider = ProviderBuilder::new().on_http(self.network_rpc_url.clone());
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let provider = Provider::<Http>::try_from(self.network_rpc_url.clone()).unwrap();
+
+        #[cfg(target_arch = "wasm32")]
+        let provider = Provider::<Ws>::connect(self.network_rpc_url.clone())
+            .await
+            .unwrap();
+
+        let provider = Arc::new(provider);
 
         let payment_channel_contract =
             PaymentChannelContract::new(payment_channel.address, provider);
 
-        let balance_value = payment_channel_contract
-            .getBalance()
-            .call()
-            .await
-            .unwrap()
-            ._0;
+        let balance_value = payment_channel_contract.get_balance().call().await.unwrap();
 
         let balance = U256::from(balance_value);
 
@@ -122,12 +151,7 @@ impl ChannelState {
             return Err(AuthError::InsufficientBalance);
         }
 
-        let expiration_value = payment_channel_contract
-            .expiration()
-            .call()
-            .await
-            .unwrap()
-            ._0;
+        let expiration_value = payment_channel_contract.expiration().call().await.unwrap();
 
         let expiration = U256::from(expiration_value);
 
@@ -138,12 +162,8 @@ impl ChannelState {
         }
 
         // Verify the channelID from the contract
-        let channel_id_value = payment_channel_contract
-            .channelId()
-            .call()
-            .await
-            .unwrap()
-            ._0;
+        let channel_id_value = payment_channel_contract.channel_id().call().await.unwrap();
+
         let channel_id = U256::from(channel_id_value);
 
         println!("Channel ID: {}", channel_id);
@@ -153,18 +173,13 @@ impl ChannelState {
         }
 
         // Verify sender and recipient from the contract
-        let sender_value = payment_channel_contract.sender().call().await.unwrap()._0;
+        let sender_value = payment_channel_contract.sender().call().await.unwrap();
 
         if payment_channel.sender != sender_value {
             return Err(AuthError::InvalidChannel);
         }
 
-        let recipient_value = payment_channel_contract
-            .recipient()
-            .call()
-            .await
-            .unwrap()
-            ._0;
+        let recipient_value = payment_channel_contract.recipient().call().await.unwrap();
 
         if payment_channel.recipient != recipient_value {
             return Err(AuthError::InvalidChannel);
@@ -225,32 +240,45 @@ impl ChannelState {
 
 // Close the channel to withdraw the funds
 pub async fn close_channel(
-    rpc_url: Url,
+    rpc_url: String,
     private_key: &str,
     payment_channel: &PaymentChannel,
     signature: &Signature,
     raw_body: Bytes,
-) -> Result<FixedBytes<32>, Error> {
-    let signer: PrivateKeySigner = private_key.parse().expect("Invalid private key");
-    let wallet = EthereumWallet::from(signer);
+) -> Result<(), Error> {
+    // let signer: PrivateKeySigner = private_key.parse().expect("Invalid private key");
+    // let wallet = EthereumWallet::from(signer);
+    let wallet = private_key.parse::<LocalWallet>().unwrap();
 
-    let provider = ProviderBuilder::new()
-        .wallet(wallet)
-        .on_http(rpc_url.clone());
+    // let provider = ProviderBuilder::new()
+    //     .wallet(wallet)
+    //     .on_http(rpc_url.clone());
 
-    let payment_channel_contract = PaymentChannelContract::new(payment_channel.address, provider);
+    #[cfg(not(target_arch = "wasm32"))]
+    let provider = Provider::<Http>::try_from(rpc_url.clone()).unwrap();
 
-    let tx_hash = payment_channel_contract
+    #[cfg(target_arch = "wasm32")]
+    let provider = Provider::<Ws>::connect(rpc_url.clone()).await.unwrap();
+
+    let client = Arc::new(SignerMiddleware::new(provider, wallet));
+
+    // let payment_channel_contract = PaymentChannelContract::new(payment_channel.address, provider);
+
+    let payment_channel_contract = PaymentChannelContract::new(payment_channel.address, client);
+
+    let receipt = payment_channel_contract
         .close(
-            payment_channel.balance,
+            payment_channel.balance.into(),
             payment_channel.nonce,
-            raw_body,
-            Bytes::from(signature.as_bytes()),
+            raw_body.into(),
+            Bytes::from(signature.to_vec()).into(),
         )
         .send()
-        .await?
-        .watch()
-        .await?;
+        .await
+        .unwrap()
+        .await
+        .unwrap();
 
-    Ok(tx_hash)
+    println!("Receipt: {:?}", receipt);
+    Ok(())
 }

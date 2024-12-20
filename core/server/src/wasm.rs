@@ -1,27 +1,33 @@
-use alloy::{hex, primitives::U256, signers::Signature};
+// use alloy::{hex, primitives::U256, signers::Signature};
+
+use ethers::{
+    types::{Signature, U256},
+    utils::hex,
+};
+
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
 use crate::{
-    channel::ChannelState,
+    channel::{close_channel, ChannelState},
     types::{PaymentChannel, SignedRequest},
     verify::verify_and_update_channel,
 };
 
 #[wasm_bindgen]
-pub struct WasmChannelState {
+pub struct PaymentChannelVerifier {
     inner: ChannelState,
 }
 
 #[wasm_bindgen]
-impl WasmChannelState {
+impl PaymentChannelVerifier {
     #[wasm_bindgen(constructor)]
-    pub fn new(rpc_url: &str) -> Result<WasmChannelState, JsError> {
+    pub fn new(rpc_url: &str) -> Result<PaymentChannelVerifier, JsError> {
         let url = rpc_url
             .parse()
             .map_err(|e| JsError::new(&format!("Invalid URL: {}", e)))?;
 
-        Ok(WasmChannelState {
+        Ok(PaymentChannelVerifier {
             inner: ChannelState::new(url),
         })
     }
@@ -68,6 +74,39 @@ impl WasmChannelState {
             Ok(JsValue::from_str(&serde_json::to_string(&result).unwrap()))
         })
     }
+}
+
+#[wasm_bindgen]
+pub fn close_and_withdraw_channel(
+    rpc_url: String,
+    private_key: String,
+    signature: String,
+    payment_channel_json: String,
+    body_bytes: Vec<u8>,
+) -> js_sys::Promise {
+    future_to_promise(async move {
+        let signature: Signature = unhexlify(&signature)
+            .map_err(|e| JsValue::from_str(&format!("Invalid signature: {}", e)))
+            .and_then(|bytes| {
+                Signature::try_from(bytes.as_slice())
+                    .map_err(|_| JsValue::from_str("Invalid signature: invalid length"))
+            })?;
+
+        let payment_channel: PaymentChannel = serde_json::from_str(&payment_channel_json)
+            .map_err(|e| JsValue::from_str(&format!("Invalid payment channel: {}", e)))?;
+
+        close_channel(
+            rpc_url,
+            private_key.as_str(),
+            &payment_channel,
+            &signature,
+            body_bytes,
+        )
+        .await
+        .map_err(|e| JsValue::from_str(&format!("Verification failed: {}", e)))?;
+
+        Ok(JsValue::NULL)
+    })
 }
 
 fn hexlify(a: &[u8]) -> String {

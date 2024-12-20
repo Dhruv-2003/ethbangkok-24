@@ -1,19 +1,17 @@
-use alloy::{
-    dyn_abi::DynSolValue,
-    primitives::{keccak256, U256},
+use ethers::{
+    abi::{encode_packed, Tokenizable},
+    types::{Bytes, U256},
+    utils::keccak256,
 };
 
 pub fn create_message(channel_id: U256, balance: U256, nonce: U256, body: &[u8]) -> Vec<u8> {
-    let message = DynSolValue::Tuple(vec![
-        DynSolValue::Uint(channel_id, 256),
-        DynSolValue::Uint(balance, 256),
-        DynSolValue::Uint(nonce, 256),
-        DynSolValue::Bytes(body.to_vec()),
-    ]);
+    let message = encode_packed(&[
+        channel_id.into_token(),
+        balance.into_token(),
+        nonce.into_token(),
+        Bytes::from(body.to_vec()).into_token(),
+    ])
+    .unwrap();
 
-    let encoded_message = message.abi_encode_packed();
-
-    let hashed_message = keccak256(&encoded_message);
-
-    hashed_message.to_vec()
+    keccak256(message).to_vec()
 }

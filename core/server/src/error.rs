@@ -1,4 +1,6 @@
+#[cfg(not(target_arch = "wasm32"))]
 use axum::http::StatusCode;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -29,6 +31,7 @@ pub enum AuthError {
     InvalidConfig,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<AuthError> for StatusCode {
     fn from(error: AuthError) -> Self {
         match error {

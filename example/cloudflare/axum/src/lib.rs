@@ -1,11 +1,12 @@
-use alloy::primitives::U256;
+// use alloy::primitives::U256;
 use axum::{routing::get, Router};
+use ethers::types::U256;
 use pipegate::{channel::ChannelState, middleware::auth_middleware};
 use tower_service::Service;
 use worker::*;
 
 fn router() -> Router {
-    let state = ChannelState::new("https://base-sepolia-rpc.publicnode.com".parse().unwrap());
+    let state = ChannelState::new("wss://base-sepolia-rpc.publicnode.com".parse().unwrap());
 
     Router::new()
         .route("/", get(root))

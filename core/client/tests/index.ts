@@ -8,15 +8,15 @@ async function testSDKInterceptors() {
     const sdk = new ClientInterceptor();
 
     const mockCreateChannelResponse: CreateChannelResponse = {
-      channelId: 2n,
+      channelId: 1n,
       sender: "0x898d0DBd5850e086E6C09D2c83A26Bb5F1ff8C33",
       recipient: "0x62C43323447899acb61C18181e34168903E033Bf",
-      channelAddress: "0xC72DfAC1a7B3Bc178F10Dc3bf36c7F64cf41B7DE",
+      channelAddress: "0x19A91e578E2a8117fE4FeF93A5cf9ac886EFDa52",
       duration: 2592000n,
       tokenAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       amount: 1000000n,
       price: 1000n,
-      timestamp: 1733936914n,
+      timestamp: 1733936718n,
     };
 
     // Add mock channel state to the SDK

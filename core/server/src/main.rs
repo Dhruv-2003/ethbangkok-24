@@ -1,12 +1,14 @@
 use std::{env, str::FromStr};
 
-use alloy::{
-    primitives::{Address, Bytes, U256},
-    signers::Signature,
-};
+// use alloy::{
+//     primitives::{Address, Bytes, U256},
+//     signers::Signature,
+// };
 
 #[cfg(not(target_arch = "wasm32"))]
 use axum::{routing::get, Router};
+
+use ethers::types::{Address, Bytes, Signature, U256};
 use pipegate::{
     channel::{close_channel, ChannelState},
     middleware::auth_middleware,
@@ -21,14 +23,19 @@ pub async fn main() {
 
     // add middleware we created for protecting routes
     // Create a new instance of our state
-    let rpc_url: alloy::transports::http::reqwest::Url =
-        "https://base-sepolia-rpc.publicnode.com".parse().unwrap();
+    // let rpc_url: alloy::transports::http::reqwest::Url =
+    //     "https://base-sepolia-rpc.publicnode.com".parse().unwrap();
+
+    use ethers::types::U256;
+
+    // let rpc_url = "wss://base-sepolia-rpc.publicnode.com".to_string();
+    let rpc_url = "https://base-sepolia-rpc.publicnode.com".to_string();
 
     // Amount is not supposed to be in the decimal format, so parsed with the decimals of that token
     // E.g. if USDC is being used 1USDC = 1000000 after 6 decimal places in case of the USDC token
     let payment_amount = U256::from(1000); // 0.001 USDC in this case
 
-    let state = ChannelState::new(rpc_url.clone());
+    let state = ChannelState::new(rpc_url);
 
     let app = Router::new()
         // `GET /` goes to `root`
@@ -60,22 +67,25 @@ pub async fn close_and_withdraw(_state: &ChannelState) {
 
     let signature : Signature = Signature::from_str("0x9dbbaab8fb419ad1fc50d2d7d0c037f6621d8fc22701b92c503d80e262081d2a11343599127d064b9ca054cd0ae29c7025394f658b47b4c5c102bfd631d7bcb91b").unwrap();
 
-    let rpc_url: alloy::transports::http::reqwest::Url =
-        "https://base-sepolia-rpc.publicnode.com".parse().unwrap();
+    // let rpc_url: alloy::transports::http::reqwest::Url =
+    //     "https://base-sepolia-rpc.publicnode.com".parse().unwrap();
+
+    let rpc_url = "https://base-sepolia-rpc.publicnode.com".to_string();
+    // let rpc_url = "wss://base-sepolia-rpc.publicnode.com".to_string();
 
     let private_key = env::var("PRIVATE_KEY").expect("PRIVATE_KEY must be set");
 
-    let raw_body = Bytes::from("0x");
+    let raw_body = Bytes::from_str("0x").unwrap();
 
-    let tx_hash = close_channel(
+    close_channel(
         rpc_url,
         private_key.as_str(),
         &payment_channel,
         &signature,
-        raw_body,
-    );
-
-    println!("Transaction Hash: {:?}", tx_hash.await);
+        raw_body.to_vec(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn root() -> &'static str {
